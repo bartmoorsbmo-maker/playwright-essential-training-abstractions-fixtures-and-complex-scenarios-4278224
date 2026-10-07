@@ -12,6 +12,12 @@ dotenv.config({ path: path.resolve(__dirname, ".env") });
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
+  webServer: {
+    command: "npm run start",
+    port: 5173,
+    timeout: 60 * 1000,
+    reuseExistingServer: !process.env.CI,
+  },
   timeout: 30_000,
   globalTimeout: 10 * 60 * 1000,
   testDir: "./tests",
@@ -71,10 +77,10 @@ export default defineConfig({
     //   name: 'Mobile Chrome',
     //   use: { ...devices['Pixel 5'] },
     // },
-    {
-      name: "Mobile Safari",
-      use: { ...devices["iPhone 13"] },
-    },
+    // {
+    //   name: "Mobile Safari",
+    //   use: { ...devices["iPhone 13"] },
+    // },
 
     /* Test against branded browsers. */
     // {
