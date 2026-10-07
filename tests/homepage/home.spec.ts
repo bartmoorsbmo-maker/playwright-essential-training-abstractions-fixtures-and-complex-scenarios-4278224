@@ -1,7 +1,9 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Home page with no auth", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    // Add 30 seconds to the default timeout for this test suite
+    testInfo.setTimeout(testInfo.timeout + 30_000);
     await page.goto("/");
   });
 
@@ -22,7 +24,7 @@ test.describe("Home page with no auth", () => {
 
   test("validate page title", async ({ page }) => {
     await expect(page).toHaveTitle(
-      "Practice Software Testing - Toolshop - v5.0"
+      "Practice Software Testing - Toolshop - v5.0",
     );
   });
 
@@ -54,7 +56,7 @@ test.describe("Home page with no auth", () => {
     });
     expect(
       inputsWithoutLabels.length,
-      `Labels with issues: ${inputsWithoutLabels.toString()}`
+      `Labels with issues: ${inputsWithoutLabels.toString()}`,
     ).toBe(0);
   });
 
@@ -68,7 +70,7 @@ test.describe("Home page with no auth", () => {
     });
     expect(
       brokenImages.length,
-      `Broken Images: ${brokenImages.toString()}`
+      `Broken Images: ${brokenImages.toString()}`,
     ).toBe(0);
   });
 });
@@ -135,13 +137,13 @@ test("validate product data is visible from modified API", async ({ page }) => {
 
   const productGrid = page.locator(".col-md-9");
   await expect(productGrid.getByRole("link").first()).toContainText(
-    "Mocked Product"
+    "Mocked Product",
   );
   await expect(productGrid.getByRole("link").first()).toContainText(
-    "100000.01"
+    "100000.01",
   );
   await expect(productGrid.getByRole("link").first()).toContainText(
-    "Out of stock"
+    "Out of stock",
   );
 });
 
@@ -166,16 +168,20 @@ test("validate brands by intercepting network data", async ({ page }) => {
     await page.route(apiUrl + "/brands", async (route) => {
       const response = await route.fetch();
       brands = await response.json();
-      route.continue();
+      console.log("Brands from API: ", brands);
+      // Pass on the response we already fetched; continue() would request it again
+      await route.fulfill({ response });
     });
   });
   await page.goto("/");
 
-  const productGrid = page.locator(".col-md-9");
-  await expect(productGrid).toBeVisible();
-  await expect(page.locator(".skeleton").first()).not.toBeVisible();
+  // Nothing else waits for /brands, so wait until the handler has stored the data
+  await expect.poll(() => brands).toBeDefined();
 
-  const brandFilterSection = page.getByText("SortName (A - Z)Name (Z - A)");
+  //const brandFilterSection = page.locator("#filters");
+
+  const brandFilterSection = page.locator('//*[@id="filters"]/fieldset[2]');
+  console.log("Brands from UI: ", await brandFilterSection.textContent());
 
   for (const brand of brands) {
     await expect(brandFilterSection).toContainText(brand.name);

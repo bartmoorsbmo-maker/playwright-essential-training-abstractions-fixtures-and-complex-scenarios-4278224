@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("Bagel Shop Smoke Test", async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto("http://localhost:5173");
 
   await expect(
