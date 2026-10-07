@@ -22,7 +22,7 @@ test.describe("Home page with no auth", () => {
 
   test("validate page title", async ({ page }) => {
     await expect(page).toHaveTitle(
-      "Practice Software Testing - Toolshop - v5.0"
+      "Practice Software Testing - Toolshop - v5.0",
     );
   });
 
@@ -45,7 +45,7 @@ test.describe("Home page with no auth", () => {
 
   test("check for inputs without labels", async ({ page }) => {
     // await page.goto("https://with-bugs.practicesoftwaretesting.com/");
-
+    await page.waitForLoadState("networkidle");
     const inputsWithoutLabels = await page.evaluate(() => {
       // Find inputs that are missing labels on page
       return Array.from(document.querySelectorAll("input"))
@@ -54,13 +54,13 @@ test.describe("Home page with no auth", () => {
     });
     expect(
       inputsWithoutLabels.length,
-      `Labels with issues: ${inputsWithoutLabels.toString()}`
+      `Labels with issues: ${inputsWithoutLabels.toString()}`,
     ).toBe(0);
   });
 
   test("check for broken images", async ({ page }) => {
     // await page.goto("https://with-bugs.practicesoftwaretesting.com/");
-
+    await page.waitForLoadState("networkidle");
     const brokenImages = await page.evaluate(() => {
       return Array.from(document.querySelectorAll("img"))
         .filter((img) => img.naturalWidth === 0 || img.naturalHeight === 0)
@@ -68,7 +68,7 @@ test.describe("Home page with no auth", () => {
     });
     expect(
       brokenImages.length,
-      `Broken Images: ${brokenImages.toString()}`
+      `Broken Images: ${brokenImages.toString()}`,
     ).toBe(0);
   });
 });
@@ -101,11 +101,13 @@ test.describe("Home page customer 01 auth", () => {
       await page.route(apiUrl + "/products**", async (route) => {
         const response = await route.fetch();
         products = await response.json();
-        route.continue();
+        //route.continue();
+        await route.fulfill({ response });
       });
     });
 
     await page.goto("/");
+    await expect.poll(() => products).toBeDefined();
 
     const productGrid = page.locator(".col-md-9");
     await expect(productGrid).toBeVisible();
@@ -135,13 +137,13 @@ test("validate product data is visible from modified API", async ({ page }) => {
 
   const productGrid = page.locator(".col-md-9");
   await expect(productGrid.getByRole("link").first()).toContainText(
-    "Mocked Product"
+    "Mocked Product",
   );
   await expect(productGrid.getByRole("link").first()).toContainText(
-    "100000.01"
+    "100000.01",
   );
   await expect(productGrid.getByRole("link").first()).toContainText(
-    "Out of stock"
+    "Out of stock",
   );
 });
 
@@ -166,16 +168,36 @@ test("validate brands by intercepting network data", async ({ page }) => {
     await page.route(apiUrl + "/brands", async (route) => {
       const response = await route.fetch();
       brands = await response.json();
-      route.continue();
+      console.log("Brands from API: ", brands);
+      // Pass on the response we already fetched; continue() would request it again
+      await route.fulfill({ response });
     });
   });
   await page.goto("/");
 
-  const productGrid = page.locator(".col-md-9");
-  await expect(productGrid).toBeVisible();
-  await expect(page.locator(".skeleton").first()).not.toBeVisible();
+  // Nothing else waits for /brands, so wait until the handler has stored the data
+  await expect.poll(() => brands).toBeDefined();
 
-  const brandFilterSection = page.getByText("SortName (A - Z)Name (Z - A)");
+  const brandFilterSection = page.locator("#filters");
+  console.log("Brands from UI: ", await brandFilterSection.textContent());
+
+  for (const brand of brands) {
+    await expect(brandFilterSection).toContainText(brand.name);
+  }
+});
+
+test("validate brands by waiting for the network response", async ({
+  page,
+}) => {
+  const apiUrl = process.env.API_URL;
+  // Start waiting before goto, so the response can't be missed
+  const brandsResponse = page.waitForResponse(apiUrl + "/brands");
+  await page.goto("/");
+
+  const brands = await (await brandsResponse).json();
+  console.log("Brands from API: ", brands);
+  const brandFilterSection = page.locator("#filters");
+  console.log("Brands from UI: ", await brandFilterSection.textContent());
 
   for (const brand of brands) {
     await expect(brandFilterSection).toContainText(brand.name);
@@ -197,15 +219,12 @@ test("validate categories render in UI by mocking", async ({ page }) => {
         json[0].sub_categories[0].name = "Mocked Subcategory";
       }
       await route.fulfill({ response, json });
+      console.log("Categories from API: ", json);
     });
   });
   await page.goto("/");
-
-  const productGrid = page.locator(".col-md-9");
-  await expect(productGrid).toBeVisible();
-  await expect(page.locator(".skeleton").first()).not.toBeVisible();
-
-  const categoryFilterSection = page.getByText("SortName (A - Z)Name (Z - A)");
+  const categoryFilterSection = page.locator("#filters");
+  await expect(categoryFilterSection).toBeVisible();
 
   await expect(categoryFilterSection).toContainText("Mocked Category");
   await expect(categoryFilterSection).toContainText("Mocked Subcategory");
